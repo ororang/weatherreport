@@ -17,7 +17,7 @@ def weathers(lat, lon):
 
 def school_menu(current_date_time):
     next_day = current_date_time + timedelta(days=1)
-    formatted_date = next_day.strftime("%Y%m%d")
+    formatted_date = today.strftime("%Y%m%d")
     fields = ("MMEAL_SC_NM", "MLSV_YMD", "DDISH_NM", "CAL_INFO")
     service_key = ("15f44e0238a34188b681b4c7225143fd", "")
     url = "https://open.neis.go.kr/hub/mealServiceDietInfo"
