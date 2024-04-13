@@ -1,28 +1,71 @@
 import requests
 import json
+from datetime import datetime
+from urllib.request import urlopen
+from urllib.parse import urlencode, unquote, quote_plus
+import urllib
 import pandas as pd
-from datetime import datetime, timedelta
 
-def weathers(lat, lon):
-    url = 'https://api.openweathermap.org/data/2.5/weather?lat={}&lon={}&appid=6fc3bac96f01ebc8e27a717aad48218a&units=metric'.format(lat, lon)
 
-    res = requests.get(url)
-    data = res.json()
-    
-    temp = data['main']['temp']
-    max_temp = data['main']['temp_max']
-    min_temp = data['main']['temp_min']
+def weathers(nx, ny):
+    url = 'http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst'
+    serviceKey = "your service key from 기상청" # Remove space after the service key
+    pageNo = 1
+    numOfRows = 500
+    dataType = 'JSON'
+    today = datetime.today().strftime("%Y%m%d")
+    template = []
+    template2 = []
 
-    return f'오늘 날씨는 {temp}입니다. 최고기온은 {max_temp}입니다. 최저기온은 {min_temp}입니다.'
+    params = '?' + urlencode({
+        quote_plus("serviceKey"): serviceKey,
+        quote_plus("numOfRows"): numOfRows,
+        quote_plus("pageNo"): pageNo,
+        quote_plus("dataType"): dataType,
+        quote_plus("base_date"): today,
+        quote_plus("base_time"): "0500",
+        quote_plus("nx"): nx,
+        quote_plus("ny"): ny
+    })
+    req = urllib.request.Request(url + unquote(params))
+    print(req)
+    response_body = urlopen(req).read()
+    data = json.loads(response_body)
+
+    df = pd.DataFrame(data['response']['body']['items']['item'])
+    informations = dict()
+
+    for itemse in data['response']['body']['items']['item'] :
+        cate = itemse['category']
+        fcstTime = itemse['fcstTime']
+        fcstValue = itemse['fcstValue']
+        temp = dict()
+        temp[cate] = fcstValue
+        
+        if fcstTime not in informations.keys() :
+            informations[fcstTime] = dict()
+        #print(items['category'], items['fcstTime'], items['fcstValue'])
+        #print(informations[fcstTime])
+        informations[fcstTime][cate] = fcstValue
+    pyt_code = {0 : '비 없음', 1 : '비', 2 : '비/눈', 3 : '눈', 5 : '빗방울', 6 : '진눈깨비', 7 : '눈날림'}
+    for key, val in zip(informations.keys(), informations.values()):
+        if val['PTY'] :
+            pty_temp = pyt_code[int(val['PTY'])]
+    #         print("강수 여부 :",pty_temp)
+            template2.append(pty_temp)
+            
+        if val['TMP'] :
+            t1h_temp = float(val['TMP'])
+    #         print(f"기온 : {t1h_temp}℃")
+            template.append(t1h_temp) 
+    return f'오늘 아침 온도는{template[1]}℃ 입니다. 날씨는 {template2[1]} 입니다.'
 
 def school_menu(current_date_time):
-    next_day = current_date_time + timedelta(days=1)
-    formatted_date = today.strftime("%Y%m%d")
-    fields = ("MMEAL_SC_NM", "MLSV_YMD", "DDISH_NM", "CAL_INFO")
-    service_key = ("15f44e0238a34188b681b4c7225143fd", "")
+    formatted_date = current_date_time.strftime("%Y%m%d")  
+    service_key = "your service key from 교육청"  
     url = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     params = {
-        "KEY": service_key[0],
+        "KEY": service_key,
         "Type": "json",
         "pIndex": "1",
         "pSize": "100",
@@ -32,31 +75,27 @@ def school_menu(current_date_time):
     }
 
     response = requests.get(url, params=params)
-    # Parse the JSON response
-    data = response.json()
-
-    # Now you can extract the necessary information as shown in the previous example
-    schul_info = data["mealServiceDietInfo"][1]["row"][0]
-    school_name = schul_info["SCHUL_NM"]
-    meal_date = schul_info["MLSV_YMD"]
-    meal_menu = schul_info["DDISH_NM"].replace("<br/>", "\n")
-    calories = schul_info["CAL_INFO"]
-    nutrient_info = schul_info["NTR_INFO"].replace("<br/>", "\n")
-
-    return f'오늘 급식은: {school_name} , {meal_date} , {meal_menu} , {calories} '
-
-
+    
+    if response.status_code == 200:
+        data = response.json()
+        if "mealServiceDietInfo" in data and "row" in data["mealServiceDietInfo"][1]:
+            schul_info = data["mealServiceDietInfo"][1]["row"][0]
+            school_name = schul_info["SCHUL_NM"]
+            meal_date = schul_info["MLSV_YMD"]
+            meal_menu = schul_info["DDISH_NM"].replace("<br/>", "\n")
+            calories = schul_info.get("CAL_INFO", "")
+            return f'오늘 급식은: {school_name} , {meal_date} , {meal_menu} , {calories} '
 
 def message_send(message):
     # Your Kakao API credentials and URL
-    manual_code = "WUBg0pkPR0u9CyaS7FiWAUJhz655tvTde1sVEy_WAV_rLJkrhWfKECzneggKKcjZAAABjMQkykhDz1szkZmFRA"
+    manual_code = "your manual code"
     token_url = "https://kauth.kakao.com/oauth/token"
     send_url = "https://kapi.kakao.com/v2/api/talk/memo/default/send"
 
     # Request a token using the authorization code
     data = {
         "grant_type": "authorization_code",
-        "client_id": "92c44268fe79aba5f10c8d4ed21c22a2",
+        "client_id": "your client id",
         "redirect_url": "https://localhost:3000",
         "code": manual_code
     }
@@ -75,7 +114,7 @@ def message_send(message):
     refresh_token = tokens['refresh_token']
     data = {
         "grant_type": "refresh_token",
-        "client_id": "92c44268fe79aba5f10c8d4ed21c22a2",
+        "client_id": "your client id",
         "refresh_token": refresh_token
     }
     response = requests.post(token_url, data=data)
@@ -98,11 +137,9 @@ def message_send(message):
     else:
         print("Error: Unable to obtain access token")
 
-
-# 날씨 정보를 가져와 메시지로 전송
-weather_message = weathers(37.588, 126.978)
-today_menu = school_menu(datetime.now())
-print(today_menu)
-message_send(weather_message)
-message_send(today_menu)
-    
+if __name__ == "__main__":
+    weather_message = weathers(59,128)
+    today_menu = school_menu(datetime.now())
+    print(today_menu)
+    message_send(weather_message)
+    message_send(today_menu)
